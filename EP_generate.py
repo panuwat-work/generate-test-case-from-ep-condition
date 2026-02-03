@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 from collections import OrderedDict
 import json
 
-FILE_PATH = "Testpythonep.xlsx"
+FILE_PATH = "EP_table.xlsx"
 OUTPUT_HTML = "ep_matrix.html"
 
 # =========================================================
@@ -249,12 +249,21 @@ function renderTC(col) {{
   const data = TC_DETAIL[key];
   if (!data) return;
 
-  let html = `<h3>${{key}}</h3>`;
+  let html = `<div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3>${{key}}</h3>
+    <button onclick="copyToClipboard('${{key}}')">Copy</button>
+  </div>`;
+
+  let copyText = `${{key}}\\n`;
+
   data.forEach(i => {{
     const cond = escapeHtml(i.condition);
     const tag = escapeHtml(i.tag);
     const desc = escapeHtml(i.desc);
     
+    // Plain text for clipboard
+    copyText += `- ${{i.condition}}: ${{i.tag}} = ${{i.desc}}\\n`;
+
     let color = "";
     if (String(i.tag).toLowerCase().startsWith("v")) {{
       color = "color: #28a745;";
@@ -268,7 +277,24 @@ function renderTC(col) {{
       </div>
     `;
   }});
+  
   document.getElementById("tc-detail").innerHTML = html;
+}}
+
+function copyToClipboard(key) {{
+  const data = TC_DETAIL[key];
+  if (!data) return;
+
+  let text = `${{key}}\\n`;
+  data.forEach(i => {{
+    text += `- ${{i.condition}}: ${{i.tag}} = ${{i.desc}}\\n`;
+  }});
+
+  navigator.clipboard.writeText(text).then(() => {{
+    alert("Copied to clipboard!");
+  }}).catch(err => {{
+    console.error('Failed to copy: ', err);
+  }});
 }}
 
 function clearAll() {{
