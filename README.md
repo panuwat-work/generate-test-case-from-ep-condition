@@ -65,6 +65,8 @@ An interactive HTML file for visualizing the test cases.
 - **Rows**: Represent EP Tags (v1, x1, etc.).
 - **Click**: Click on any "TC" header to highlight its column and view details in the side panel.
 
+<img width="904" height="359" alt="image" src="https://github.com/user-attachments/assets/fefd211b-f07f-4338-b2f0-7273f9e8b8cf" />
+
 ### 2. `testcase.txt`
 A plain text file containing the breakdown of each test case.
 
