@@ -330,6 +330,17 @@ if __name__ == "__main__":
     conditions = read_conditions(FILE_PATH)
     tcs = generate_ep_testcases(conditions)
 
+    # Write testcases to text file
+    with open("testcase.txt", "w", encoding="utf-8") as f:
+        conds = list(conditions.keys())
+        for i, tc in enumerate(tcs, start=1):
+            if i > 1: f.write("\n")
+            f.write(f"TC{i}\n")
+            for idx, tag in enumerate(tc):
+                cond = conds[idx]
+                desc = conditions[cond]["valid"].get(tag) or conditions[cond]["invalid"].get(tag) or ""
+                f.write(f"  - {cond}: {tag} = {desc}\n")
+
     # terminal output (unchanged)
     print_testcases(tcs, conditions)
 
