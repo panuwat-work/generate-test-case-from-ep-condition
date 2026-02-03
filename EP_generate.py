@@ -2,7 +2,7 @@ from openpyxl import load_workbook
 from collections import OrderedDict
 import json
 
-FILE_PATH = "test2.xlsx"
+FILE_PATH = "Testpythonep.xlsx"
 OUTPUT_HTML = "ep_matrix.html"
 
 # =========================================================
@@ -185,8 +185,8 @@ th {{
   background: white;
 }}
 
-.valid {{ background: #c3e6cb; color: #155724; }}
-.invalid {{ background: #f5c6cb; color: #721c24; }}
+.valid {{ background: #c3e6cb; color: #28a745; }}
+.invalid {{ background: #f5c6cb; color: #dc3545; }}
 
 .sep-top td {{ border-top: 3px solid black; }}
 
@@ -251,9 +251,20 @@ function renderTC(col) {{
 
   let html = `<h3>${{key}}</h3>`;
   data.forEach(i => {{
+    const cond = escapeHtml(i.condition);
+    const tag = escapeHtml(i.tag);
+    const desc = escapeHtml(i.desc);
+    
+    let color = "";
+    if (String(i.tag).toLowerCase().startsWith("v")) {{
+      color = "color: #28a745;";
+    }} else if (String(i.tag).toLowerCase().startsWith("x")) {{
+       color = "color: #dc3545;";
+    }}
+
     html += `
-      <div style="margin-bottom:6px;">
-        - <b>${{i.condition}}</b>: <b>${{i.tag}}</b> = ${{i.desc}}
+      <div style="margin-bottom:8px;">
+        - <span style="${{color}}"><b>${{cond}}</b>: <b>${{tag}}</b></span> = ${{desc}}
       </div>
     `;
   }});
@@ -264,6 +275,16 @@ function clearAll() {{
   document.querySelectorAll(
     ".highlight-col,.highlight-green,.highlight-red"
   ).forEach(e => e.classList.remove("highlight-col","highlight-green","highlight-red"));
+}}
+
+function escapeHtml(text) {{
+  if (text === null || text === undefined) return "";
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }}
 </script>
 </head>
