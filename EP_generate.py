@@ -44,7 +44,7 @@ def read_conditions(path):
 
 
 # =========================================================
-# STEP 2: Generate EP Testcases (DO NOT TOUCH)
+# STEP 2: Generate EP Testcases (FIXED EP LOGIC)
 # =========================================================
 def generate_ep_testcases(conditions):
     conds = list(conditions.keys())
@@ -54,16 +54,26 @@ def generate_ep_testcases(conditions):
 
     tcs = []
 
-    # --- all valid ---
-    for i in range(max(len(v) for v in valid_sets)):
-        tc = [v[i % len(v)] for v in valid_sets]
+    # -----------------------------------------------------
+    # VALID TESTCASES (index-based alignment, NO duplicate)
+    # -----------------------------------------------------
+    max_len = max(len(v) for v in valid_sets)
+
+    for i in range(max_len):
+        tc = []
+        for vs in valid_sets:
+            tc.append(vs[i % len(vs)])
         tcs.append(tc)
 
-    # --- single invalid ---
+    valid_tc_count = len(tcs)
+
+    # -----------------------------------------------------
+    # INVALID TESTCASES (single X per TC)
+    # -----------------------------------------------------
     base_idx = 0
     for ci, invs in enumerate(invalid_sets):
         for x in invs:
-            base = tcs[base_idx % len(tcs)].copy()
+            base = tcs[base_idx % valid_tc_count].copy()
             base[ci] = x
             tcs.append(base)
             base_idx += 1
@@ -110,12 +120,11 @@ def build_matrix(conditions, tcs):
 
 
 # =========================================================
-# STEP 5: Generate HTML Matrix + TC Detail Panel (JS expects JSON)
+# STEP 5: Generate HTML Matrix + TC Detail Panel
 # =========================================================
 def generate_html(matrix, tag_to_cond, tc_count, tcs, conditions):
     conds = list(conditions.keys())
 
-    # ---- prepare TC detail for JS as JSON ----
     tc_detail = OrderedDict()
     for i, tc in enumerate(tcs, start=1):
         rows = []
@@ -125,20 +134,16 @@ def generate_html(matrix, tag_to_cond, tc_count, tcs, conditions):
                 conditions[cond]["valid"].get(tag)
                 or conditions[cond]["invalid"].get(tag)
             )
-            # ensure strings (avoid None)
-            desc_text = "" if desc is None else str(desc)
             rows.append({
                 "condition": cond,
                 "tag": tag,
-                "desc": desc_text
+                "desc": "" if desc is None else str(desc)
             })
         tc_detail[f"TC{i}"] = rows
 
     tc_detail_json = json.dumps(tc_detail, ensure_ascii=False)
 
-    html_parts = []
-
-    html_parts.append(f"""
+    html = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -155,9 +160,7 @@ body {{
 
 table {{
   border-collapse: collapse;
-  table-layout: auto;
   width: max-content;
-  max-width: 80vw;
 }}
 
 th, td {{
@@ -180,7 +183,6 @@ th {{
   position: sticky;
   left: 0;
   background: white;
-  z-index: 2;
 }}
 
 .valid {{ background: #c3e6cb; color: #155724; }}
@@ -200,25 +202,16 @@ th {{
   max-height: 80vh;
   overflow: auto;
 }}
-
-#tc-detail h3 {{
-  margin-top: 0;
-  margin-bottom: 8px;
-}}
 </style>
 
 <script>
 const TC_DETAIL = {tc_detail_json};
-
 let activeCol = null;
 
 function toggleColumn(col) {{
   const table = document.getElementById("ep");
 
-  // column index in table rows: 0 = EP Tag, 1 = TC1, 2 = TC2, ...
-  const colIndex = col; // we pass col as 1..N, which matches table cell index
-
-  if (activeCol === colIndex) {{
+  if (activeCol === col) {{
     clearAll();
     document.getElementById("tc-detail").innerHTML = "";
     activeCol = null;
@@ -226,11 +219,10 @@ function toggleColumn(col) {{
   }}
 
   clearAll();
-  activeCol = colIndex;
+  activeCol = col;
 
-  // loop rows starting from 1 (skip header)
   for (let r = 1; r < table.rows.length; r++) {{
-    const cell = table.rows[r].cells[colIndex];
+    const cell = table.rows[r].cells[col];
     if (!cell) continue;
     cell.classList.add("highlight-col");
 
@@ -248,51 +240,30 @@ function toggleColumn(col) {{
     }}
   }}
 
-  // highlight header cell
-  if (table.rows[0] && table.rows[0].cells[colIndex]) {{
-    table.rows[0].cells[colIndex].classList.add("highlight-col");
-  }}
-
-  renderTC(colIndex);
+  table.rows[0].cells[col].classList.add("highlight-col");
+  renderTC(col);
 }}
 
-function renderTC(colIndex) {{
-  const key = "TC" + colIndex;
+function renderTC(col) {{
+  const key = "TC" + col;
   const data = TC_DETAIL[key];
   if (!data) return;
 
   let html = `<h3>${{key}}</h3>`;
   data.forEach(i => {{
-    // escape html for safety
-    const cond = escapeHtml(i.condition);
-    const tag = escapeHtml(i.tag);
-    const desc = escapeHtml(i.desc);
-
     html += `
-      <div style="margin-bottom:8px;">
-        - <b>${{cond}}</b>: <b>${{tag}}</b> = ${{desc}}
+      <div style="margin-bottom:6px;">
+        - <b>${{i.condition}}</b>: <b>${{i.tag}}</b> = ${{i.desc}}
       </div>
     `;
   }});
   document.getElementById("tc-detail").innerHTML = html;
 }}
 
-/* clear highlights */
 function clearAll() {{
   document.querySelectorAll(
     ".highlight-col,.highlight-green,.highlight-red"
   ).forEach(e => e.classList.remove("highlight-col","highlight-green","highlight-red"));
-}}
-
-/* simple HTML escape */
-function escapeHtml(text) {{
-  if (!text && text !== 0) return "";
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }}
 </script>
 </head>
@@ -303,38 +274,32 @@ function escapeHtml(text) {{
 <table id="ep">
 <tr>
 <th>EP Tag</th>
-""")
+"""
 
-    # header: TC1..TCn (note: header cell indices match JS colIndex)
     for i in range(tc_count):
-        # we pass i+1 because table cell index 0=EP Tag, 1=TC1...
-        html_parts.append(f'<th onclick="toggleColumn({i+1})">TC{i+1}</th>')
-    html_parts.append("</tr>")
+        html += f'<th onclick="toggleColumn({i+1})">TC{i+1}</th>'
+
+    html += "</tr>"
 
     prev_cond = None
     for tag, row in matrix.items():
         cond = tag_to_cond[tag]
         cls = "valid" if tag.startswith("v") else "invalid"
         sep = "sep-top" if prev_cond and cond != prev_cond else ""
-
-        html_parts.append(f'<tr class="{sep}">')
-        html_parts.append(f'<td class="tag {cls}">{tag}</td>')
+        html += f'<tr class="{sep}"><td class="tag {cls}">{tag}</td>'
         for c in row:
-            html_parts.append(f"<td>{c}</td>")
-        html_parts.append("</tr>")
+            html += f"<td>{c}</td>"
+        html += "</tr>"
         prev_cond = cond
 
-    html_parts.append("""
+    html += """
 </table>
 </div>
-
 <div id="tc-detail"></div>
-
 </body>
 </html>
-""")
-
-    return "\n".join(html_parts)
+"""
+    return html
 
 
 # =========================================================
@@ -344,12 +309,12 @@ if __name__ == "__main__":
     conditions = read_conditions(FILE_PATH)
     tcs = generate_ep_testcases(conditions)
 
-    # terminal output stays as before
+    # terminal output (unchanged)
     print_testcases(tcs, conditions)
 
-    # build matrix and write HTML
     matrix, tag_to_cond = build_matrix(conditions, tcs)
     html = generate_html(matrix, tag_to_cond, len(tcs), tcs, conditions)
+
     with open(OUTPUT_HTML, "w", encoding="utf-8") as f:
         f.write(html)
 
