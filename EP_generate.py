@@ -151,8 +151,14 @@ th {
   z-index: 2;
 }
 
-.valid { background: #e9f7ef; }
-.invalid { background: #fdecea; }
+.valid {
+  background: #c3e6cb !important;
+  color: #155724;
+}
+.invalid {
+  background: #f5c6cb !important;
+  color: #721c24;
+}
 
 .sep-top td { border-top: 3px solid black; }
 
@@ -160,6 +166,16 @@ th {
 .highlight-row { background: #d1ecf1 !important; }
 .highlight-x {
   background: #f6c23e !important;
+  font-weight: bold;
+}
+.highlight-green {
+  background: #28a745 !important;
+  color: white;
+  font-weight: bold;
+}
+.highlight-red {
+  background: #dc3545 !important;
+  color: white;
   font-weight: bold;
 }
 </style>
@@ -184,8 +200,20 @@ function toggleColumn(col) {
     c.classList.add("highlight-col");
 
     if (c.innerText === "X") {
-      c.classList.add("highlight-x");
-      table.rows[r].cells[0].classList.add("highlight-row");
+      // Check the tag in the first cell (index 0)
+      const tagCell = table.rows[r].cells[0];
+      const tagText = tagCell.innerText.trim().toLowerCase();
+      
+      if (tagText.startsWith("v")) {
+             c.classList.add("highlight-green");
+             tagCell.classList.add("highlight-green");
+      } else if (tagText.startsWith("x")) {
+             c.classList.add("highlight-red");
+             tagCell.classList.add("highlight-red");
+      } else {
+             c.classList.add("highlight-x"); // fallback
+             tagCell.classList.add("highlight-row");
+      }
     }
   }
 
@@ -193,8 +221,8 @@ function toggleColumn(col) {
 }
 
 function clearAll() {
-  document.querySelectorAll(".highlight-col,.highlight-row,.highlight-x")
-    .forEach(e => e.classList.remove("highlight-col","highlight-row","highlight-x"));
+  document.querySelectorAll(".highlight-col,.highlight-row,.highlight-x,.highlight-green,.highlight-red")
+    .forEach(e => e.classList.remove("highlight-col","highlight-row","highlight-x","highlight-green","highlight-red"));
 }
 </script>
 </head>
