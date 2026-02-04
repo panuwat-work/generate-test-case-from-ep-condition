@@ -2,8 +2,8 @@ from openpyxl import load_workbook
 from collections import OrderedDict
 import json
 
-FILE_PATH = "EP_table.xlsx"
-OUTPUT_HTML = "ep_matrix.html"
+FILE_PATH = "resource/EP_table.xlsx"
+OUTPUT_HTML = "results/ep_matrix.html"
 
 # =========================================================
 # STEP 1: Read conditions from Excel
@@ -357,7 +357,7 @@ if __name__ == "__main__":
     tcs = generate_ep_testcases(conditions)
 
     # Write testcases to text file
-    with open("testcase.txt", "w", encoding="utf-8") as f:
+    with open("results/testcase.txt", "w", encoding="utf-8") as f:
         conds = list(conditions.keys())
         for i, tc in enumerate(tcs, start=1):
             if i > 1: f.write("\n")
