@@ -1,109 +1,196 @@
 import os
 import sys
-import pandas as pd
 import io
+import pandas as pd
 from openai import OpenAI
 from dotenv import load_dotenv
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment
 
-# Load environment variables from .env file
+# ---------------------------
+# Load environment variables
+# ---------------------------
 load_dotenv()
 
+# ---------------------------
 # Configuration
+# ---------------------------
 INPUT_FILE = "results/testcase.txt"
 AGENDA_FILE = "agend.md"
 REQUIREMENT_FILE = "resource/requirement.md"
 OUTPUT_FILE = "results/testcase.xlsx"
-MODEL_NAME = "gpt-4o"
+MODEL_NAME = "gpt-4.1"
 
-def clean_ai_output(text):
+EXPECTED_COLUMNS = [
+    "TC ID",
+    "Test Case Name",
+    "Test Objective",
+    "Prepare Step",
+    "Test Data",
+    "Test Steps",
+    "Expected Result"
+]
+
+# ---------------------------
+# Utility Functions
+# ---------------------------
+
+def clean_ai_output(text: str) -> str:
+    """Remove markdown code fences from AI output."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("```", 2)[1]
+    if text.endswith("```"):
+        text = text.rsplit("```", 1)[0]
+    return text.strip()
+
+
+def normalize_multiline_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Removes markdown code blocks (```) if present in the AI response.
+    Normalize Test Data & Test Steps:
+    - ONLY split on ' | ' (pipe with spaces)
+    - Preserve '|' inside real data
+    - Remove leading spaces per line
     """
-    lines = text.strip().split('\n')
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].startswith("```"):
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
+    target_columns = ["Test Data", "Test Steps"]
+
+    for col in target_columns:
+        if col not in df.columns:
+            continue
+
+        def normalize_cell(value: str) -> str:
+            if not isinstance(value, str):
+                return value
+
+            # Split ONLY on ' | '
+            parts = value.split(" | ")
+            if len(parts) == 1:
+                return value.strip()
+
+            # Join as multiline and trim each line
+            return "\n".join(p.strip() for p in parts)
+
+        df[col] = df[col].apply(normalize_cell)
+
+    return df
+
+
+def validate_output(df: pd.DataFrame):
+    """Validate AI output to ensure it is Sheet-safe and requirement-aligned."""
+    if list(df.columns) != EXPECTED_COLUMNS:
+        raise ValueError(
+            f"Column mismatch.\nExpected: {EXPECTED_COLUMNS}\nActual: {list(df.columns)}"
+        )
+
+    ui_keywords = ["page", "screen", "click", "form", "button", "navigate"]
+    for idx, row in df.iterrows():
+        steps = str(row["Test Steps"]).lower()
+        if any(word in steps for word in ui_keywords):
+            raise ValueError(
+                f"UI wording detected in Test Steps at row {idx + 1}: {row['Test Steps']}"
+            )
+
+
+def post_process_excel(file_path: str):
+    """Enable wrap text so multiline cells render immediately."""
+    wb = load_workbook(file_path)
+    ws = wb.active
+
+    wrap_alignment = Alignment(wrap_text=True, vertical="top")
+
+    for row in ws.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and "\n" in cell.value:
+                cell.alignment = wrap_alignment
+
+    for row in ws.iter_rows():
+        ws.row_dimensions[row[0].row].height = None
+
+    wb.save(file_path)
+
+# ---------------------------
+# Main Process
+# ---------------------------
 
 def main():
-    # 1. Check for API Key
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        print("Error: OPENAI_API_KEY environment variable not set.")
-        print("Please export it: export OPENAI_API_KEY='sk-...'")
+        print("❌ OPENAI_API_KEY not set.")
         sys.exit(1)
 
     client = OpenAI(api_key=api_key)
 
-    # 2. Read Input Files
-    if not os.path.exists(INPUT_FILE):
-        print(f"Error: Input file '{INPUT_FILE}' not found.")
-        sys.exit(1)
-    
-    if not os.path.exists(AGENDA_FILE):
-        print(f"Error: Agenda file '{AGENDA_FILE}' not found.")
-        sys.exit(1)
+    for file_path in [INPUT_FILE, AGENDA_FILE]:
+        if not os.path.exists(file_path):
+            print(f"❌ Required file not found: {file_path}")
+            sys.exit(1)
 
-    print(f"Reading {INPUT_FILE}, {AGENDA_FILE}, and {REQUIREMENT_FILE}...")
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
-        testcase_content = f.read()
+    print("📖 Reading input files...")
 
-    with open(AGENDA_FILE, "r", encoding="utf-8") as f:
-        agenda_content = f.read()
-    
-    # Read requirement file (optional - skip if REQUIREMENT_FILE is empty or file doesn't exist)
+    testcase_content = open(INPUT_FILE, encoding="utf-8").read()
+    agenda_content = open(AGENDA_FILE, encoding="utf-8").read()
+
     requirement_content = ""
     if REQUIREMENT_FILE and os.path.exists(REQUIREMENT_FILE):
-        with open(REQUIREMENT_FILE, "r", encoding="utf-8") as f:
-            requirement_content = f.read()
-            if requirement_content.strip():
-                print(f"  ✓ Loaded requirements from {REQUIREMENT_FILE}")
-    
-    # Build system prompt with agenda and requirements
-    system_content = agenda_content
-    if requirement_content.strip():
-        system_content += "\n\n---\n\n# Additional Context: Requirements\n\n" + requirement_content
-    
-    # User content is the test cases to convert
-    user_content = testcase_content
+        requirement_content = open(REQUIREMENT_FILE, encoding="utf-8").read().strip()
+        if requirement_content:
+            print(f"  ✓ Loaded requirements from {REQUIREMENT_FILE}")
 
-    # 3. Call OpenAI API
-    print(f"Sending request to OpenAI ({MODEL_NAME})...")
-    try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content}
-            ],
-            temperature=0.2  # Low temperature for deterministic output
-        )
-        ai_output = response.choices[0].message.content
-    except Exception as e:
-        print(f"Error calling OpenAI API: {e}")
-        sys.exit(1)
+    system_content = f"""
+CRITICAL RULES (NON-NEGOTIABLE):
 
-    # 4. Process Output
-    print("Processing AI response...")
-    cleaned_output = clean_ai_output(ai_output)
-    
-    # 5. Save to Excel
+1. You MUST read and follow resource/requirement.md first.
+2. requirement.md is the single source of truth.
+3. API / DB tests MUST NOT contain UI wording.
+4. Column order MUST match agenda exactly.
+"""
+
+    system_content += "\n\n---\n\n# AGENDA\n\n" + agenda_content
+
+    if requirement_content:
+        system_content += "\n\n---\n\n# REQUIREMENTS\n\n" + requirement_content
+
+    print(f"🤖 Sending request to OpenAI ({MODEL_NAME})...")
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": testcase_content}
+        ],
+        temperature=0.1
+    )
+
+    cleaned_output = clean_ai_output(response.choices[0].message.content)
+
     try:
-        # Expecting tab-separated values as per agend.md instructions
-        df = pd.read_csv(io.StringIO(cleaned_output), sep="\t")
-        
-        # Verify columns if needed, but we trust the AI correctly followed the strict agenda for now
-        # Writing to Excel
-        df.to_excel(OUTPUT_FILE, index=False)
-        print(f"Success! Converted test cases saved to '{OUTPUT_FILE}'.")
-        
+        lines = cleaned_output.splitlines()
+        first_row = lines[0].split("\t")
+
+        if first_row == EXPECTED_COLUMNS:
+            df = pd.read_csv(io.StringIO(cleaned_output), sep="\t")
+        else:
+            df = pd.read_csv(
+                io.StringIO(cleaned_output),
+                sep="\t",
+                header=None,
+                names=EXPECTED_COLUMNS
+            )
+
+        df = normalize_multiline_columns(df)
+        validate_output(df)
+
     except Exception as e:
-        print("Error parsing AI output or saving to Excel:")
+        print("❌ Validation failed:")
         print(e)
-        print("--- Raw AI Output ---")
+        print("\n--- RAW AI OUTPUT ---\n")
         print(cleaned_output)
         sys.exit(1)
+
+    df.to_excel(OUTPUT_FILE, index=False)
+    post_process_excel(OUTPUT_FILE)
+
+    print(f"✅ Success! Test cases saved to '{OUTPUT_FILE}'.")
+
 
 if __name__ == "__main__":
     main()

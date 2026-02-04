@@ -194,6 +194,19 @@ th {{
   cursor: pointer;
 }}
 
+/* TC header colors */
+th.tc-valid {{
+  background: #c3e6cb;
+  color: #28a745;
+  font-weight: bold;
+}}
+
+th.tc-invalid {{
+  background: #f5c6cb;
+  color: #dc3545;
+  font-weight: bold;
+}}
+
 .tag {{
   text-align: left;
   font-weight: bold;
@@ -341,8 +354,13 @@ function escapeHtml(text) {{
 <th>EP Tag</th>
 """
 
-    for i in range(tc_count):
-        html += f'<th onclick="toggleColumn({i+1})">TC{i+1}</th>'
+
+    # Generate TC headers with color coding
+    # A TC is valid if all its tags start with 'v', invalid if any tag starts with 'x'
+    for i, tc in enumerate(tcs, start=1):
+        is_valid = all(tag.lower().startswith('v') for tag in tc)
+        tc_class = 'tc-valid' if is_valid else 'tc-invalid'
+        html += f'<th class="{tc_class}" onclick="toggleColumn({i})">TC{i}</th>'
 
     html += "</tr>"
 

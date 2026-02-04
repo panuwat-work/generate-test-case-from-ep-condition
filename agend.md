@@ -1,197 +1,204 @@
-# agenda.md
+# Test Case Generation Agenda
 
-# Condition-based Test Case → Executable Test Case (Sheet-ready)
-
-## 1. Objective
-
-This agenda defines **strict instructions for AI** to convert **condition-based test cases**
-(v / x conditions) into **fully executable test cases** that are:
-
-* Requirement-aligned
-* Non-duplicated
-* Ready to **copy & paste into Google Sheets**
-* Suitable for **QA execution, review, and reporting**
-
-This agenda is **generic** and can be reused across features, modules, and projects.
+This document defines the rules and structure for generating API test cases in a consistent, automation-friendly format.
 
 ---
 
-## 2. Input Format (Condition-based Test Case)
+## 1. Scope
 
-AI will receive test cases in the following format:
-
-```
-TC1
-- Field A: v1 = valid condition description
-- Field B: v2 = valid condition description
-- Field C: x3 = invalid condition description
-```
-
-### Rules
-
-* `v*` = valid condition
-* `x*` = invalid condition
-* **Valid TC** → contains only `v*`
-* **Invalid TC** → contains exactly **one main `x*`**
-* If multiple `x*` appear → AI must **reject or split** the test case
-* Conditions are **logical definitions**, not test steps
+* This agenda applies to **API test cases only**
+* UI, Mobile, and E2E flows are **out of scope**
+* Output format is Markdown (`.md`)
+* Test cases are designed to be convertible to Excel / automation artifacts
 
 ---
 
-## 3. Conversion Principles (Must Follow)
+## 2. Test Case Structure
 
-### 3.1 One-to-One Mapping
+Each test case MUST contain the following columns:
 
-* Each TC condition → exactly **one executable test case**
-* No merging of different TCs
-* No creation of extra test cases
-
----
-
-### 3.2 Data Construction Rules
-
-When converting conditions → test data:
-
-* Generate **explicit, realistic values**
-* Data must:
-
-  * Match condition intent
-  * Be consistent across fields
-  * Avoid placeholders like `test@test.com` unless specified
-* Valid TC → all data must be valid
-* Invalid TC → only the **main invalid condition** is invalid
-  All other fields must be valid
+| Column Name     | Required | Description                                   |
+| --------------- | -------- | --------------------------------------------- |
+| TC ID           | ✅        | Unique test case identifier                   |
+| Test Case Name  | ✅        | Clear, behavior-based name                    |
+| Test Objective  | ✅        | Purpose of the test                           |
+| Prepare Step    | ⭕        | Only when necessary (e.g. prerequisite setup) |
+| Test Data       | ✅        | Explicit request data                         |
+| Test Steps      | ✅        | API execution steps                           |
+| Expected Result | ✅        | API response expectation                      |
 
 ---
 
-### 3.3 Error Handling Rules (Invalid Case)
+## 3. TC ID Rules
 
-For invalid TCs:
-
-* Expected Result must include:
-
-  * Exact validation behavior (error message / UI state)
-  * Field-level impact only
-* Do NOT introduce cascading failures
-* Do NOT validate unrelated fields
-
----
-
-## 4. Mandatory Output Format (Google Sheet Ready)
-
-⚠️ **AI MUST output in plain text, tab-separated format**
-
-### Column Order (DO NOT CHANGE)
-
-```
-TC ID	Test Case Name	Test Objective	Test Data	Test Steps	Expected Result
-```
-
-* Use **TAB** as column separator
-* Use **newline** as row separator
-* No markdown tables
-* No bullet points
-* No explanations outside the table
-
----
-
-## 5. Column Writing Rules
-
-### 5.1 TC ID
-
-* Use original TC ID (e.g. TC1, TC2)
-* Do not rename or reorder
-
----
-
-### 5.2 Test Case Name
-
-* Short
-* Business-readable
-* Reflect **main condition**
-* Example:
-
-  * `Create account with valid email and username`
-  * `Reject registration when email already exists`
-
----
-
-### 5.3 Test Objective
-
-* One sentence
-* Start with **"To verify that..."**
-* Focus on system behavior, not steps
-
----
-
-### 5.4 Test Data
-
-* Use **JSON format**
-* Include only relevant fields
-* Values must be concrete and realistic
+* Format: `TC-XXX`
+* Sequential numbering
+* No reuse of IDs
 
 Example:
 
-```
-{"email":"john.doe01@gmail.com","username":"JohnDoe","password":"Abc@12345"}
-```
+* TC-001
+* TC-002
 
 ---
 
-### 5.5 Test Steps
+## 4. Test Case Name Rules
 
-* Numbered steps in a single cell
-* High-level but executable
-* No UI locator details
-* Example:
+Test Case Name MUST:
 
-```
-1. Open registration page
-2. Enter valid registration data
-3. Submit the form
-```
+* Describe **what is being tested**
+* Reflect valid or invalid behavior
+* Be understandable without reading Test Steps
 
----
+Good examples:
 
-### 5.6 Expected Result
+* Register user with valid email and password
+* Login fails when password is incorrect
 
-* Clear, observable outcome
-* Valid TC:
+Bad examples:
 
-  * Success message
-  * Navigation
-  * Data persistence
-* Invalid TC:
-
-  * Exact validation message
-  * Field highlight / blocking behavior
+* Test register
+* API case 1
 
 ---
 
-## 6. Valid Case Deduplication Rule
+## 5. Test Objective Rules
 
-For **valid cases**:
+Test Objective MUST:
 
-* AI must generate **ONLY the minimal set of TCs**
-* Each TC must cover **unique valid condition combinations**
-* Do NOT generate permutations that do not add coverage
-* If input already defines selected valid coverage → **do not expand**
+* Explain **why** this test exists
+* Focus on one behavior only
+* Be concise and clear
 
----
+Example:
 
-## 7. Output Quality Checklist (AI Self-Check)
-
-Before responding, AI must ensure:
-
-* [ ] No duplicate valid coverage
-* [ ] Only one invalid condition per invalid TC
-* [ ] All columns filled
-* [ ] Google Sheets paste works without reformatting
-* [ ] No markdown / explanation text in output
+* To verify that the system allows user registration with valid credentials
+* To ensure login fails when an incorrect password is provided
 
 ---
 
-## 8. Final Instruction to AI
+## 6. Prepare Step Rules
 
-> Convert the given condition-based test cases strictly following this agenda.
-> Output **ONLY** the Google Sheet–ready test case table.
+* This column is **optional**
+* Leave **blank** if no prerequisite is required
+* Use ONLY when setup is mandatory
+
+Examples of valid usage:
+
+* Existing user must already be registered
+* User account is locked after 5 failed attempts
+
+Examples of invalid usage:
+
+* Open browser
+* Call API (belongs to Test Steps)
+
+---
+
+## 7. Test Data Rules
+
+Test Data represents **request payload or parameters**.
+
+### Format Rules
+
+* Use key-value pairs
+* Lowercase keys
+* One space after colon
+* Explicit values only (no placeholders)
+
+Example:
+email: [alice@test.com](mailto:alice@test.com) | password: Test1234
+
+### Notes
+
+* `|` is allowed as a field separator in AI output
+* Multi-line or readable formatting MAY be handled by post-processing scripts
+* Test Data must be deterministic and automation-ready
+
+Rules:
+
+* **Valid TC** → all fields valid
+* **Invalid TC** → only the main field under test is invalid
+* Other fields MUST remain valid
+
+---
+
+## 8. Test Steps Rules
+
+Test Steps MUST:
+
+* Be **API-based only**
+* Be written as **numbered steps**
+* Reference **actual values from Test Data**
+* Include HTTP method and endpoint
+
+### Format
+
+1. Send `<METHOD>` request to `<endpoint>` with specified test data
+2. Receive API response
+
+Example:
+
+1. Send POST request to /api/register with email=[alice@test.com](mailto:alice@test.com) and password=Test1234
+2. Receive API response
+
+### Notes
+
+* Inline values or `|`-separated values are acceptable in AI output
+* Final readability formatting MAY be applied by post-processing tools
+* Do NOT use phrases like “with test data”
+
+---
+
+## 9. Expected Result Rules
+
+Expected Result MUST:
+
+* Describe API response behavior
+* Include HTTP status code
+* Include response message or error when applicable
+
+Examples:
+
+* API returns 201 Created and user is registered successfully
+* API returns 400 Bad Request with validation error message
+
+Avoid:
+
+* Test passed
+* System works correctly
+
+---
+
+## 10. Valid / Invalid Test Case Rules
+
+### Valid Test Case
+
+* All input fields are valid
+* Expected Result indicates successful behavior
+
+### Invalid Test Case
+
+* Only ONE field is invalid per test case
+* Invalid field MUST be clear from:
+
+  * Test Case Name
+  * Test Data
+  * Expected Result
+
+---
+
+## 11. General Rules
+
+* Do NOT repeat the same test data across multiple test cases unless required
+* Avoid redundant test cases
+* Keep language clear and unambiguous
+* Output MUST be consistent and automation-friendly
+
+---
+
+## 12. Formatting Responsibility
+
+* AI is responsible for **semantic correctness**
+* Formatting normalization (e.g. multi-line conversion) MAY be handled by scripts
+* Agenda prioritizes **stability and consistency over visual formatting**
