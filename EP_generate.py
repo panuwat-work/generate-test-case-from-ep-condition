@@ -1,16 +1,34 @@
 from openpyxl import load_workbook
 from collections import OrderedDict
 import json
+import sys
+import warnings
+import os
 
-FILE_PATH = "resource/EP_table.xlsx"
+# Suppress openpyxl ZipFile cleanup warning (harmless, known issue with Python 3.13)
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+
+FILE_PATH = "resource/EP_api_assignment_nes.xlsx"
 OUTPUT_HTML = "results/ep_matrix.html"
 
 # =========================================================
 # STEP 1: Read conditions from Excel
 # =========================================================
-def read_conditions(path):
+def read_conditions(path, sheet_name=None):
+    """
+    Read conditions from Excel file.
+    
+    Args:
+        path: Path to Excel file
+        sheet_name: Name of sheet to read (None = active sheet)
+    """
     wb = load_workbook(path, data_only=True, keep_vba=True)
-    ws = wb.active
+    
+    # Use specified sheet or active sheet
+    if sheet_name:
+        ws = wb[sheet_name]
+    else:
+        ws = wb.active
 
     conditions = OrderedDict()
     last_condition = None
@@ -353,7 +371,58 @@ function escapeHtml(text) {{
 # MAIN
 # =========================================================
 if __name__ == "__main__":
-    conditions = read_conditions(FILE_PATH)
+    # Load workbook to check sheets
+    wb = load_workbook(FILE_PATH, data_only=True, keep_vba=True)
+    sheet_names = wb.sheetnames
+    
+    selected_sheet = None
+    
+    # If only 1 sheet, use it automatically
+    if len(sheet_names) == 1:
+        selected_sheet = sheet_names[0]
+        print(f"Using sheet: {selected_sheet}")
+    
+    # If multiple sheets, check command line argument or prompt user
+    else:
+        if len(sys.argv) > 1:
+            # Sheet name provided as command line argument
+            selected_sheet = sys.argv[1]
+            if selected_sheet not in sheet_names:
+                print(f"Error: Sheet '{selected_sheet}' not found.")
+                print(f"Available sheets: {', '.join(sheet_names)}")
+                sys.exit(1)
+        else:
+            # Prompt user to select sheet
+            print(f"Multiple sheets found in {FILE_PATH}:")
+            for i, name in enumerate(sheet_names, 1):
+                print(f"  {i}. {name}")
+            
+            while True:
+                try:
+                    choice = input("\nSelect sheet number (or enter sheet name): ").strip()
+                    
+                    # Try as number first
+                    if choice.isdigit():
+                        idx = int(choice) - 1
+                        if 0 <= idx < len(sheet_names):
+                            selected_sheet = sheet_names[idx]
+                            break
+                        else:
+                            print(f"Invalid number. Please enter 1-{len(sheet_names)}")
+                    # Try as sheet name
+                    elif choice in sheet_names:
+                        selected_sheet = choice
+                        break
+                    else:
+                        print(f"Sheet '{choice}' not found. Try again.")
+                except KeyboardInterrupt:
+                    print("\nCancelled.")
+                    sys.exit(0)
+    
+    print(f"\nProcessing sheet: {selected_sheet}\n")
+    
+    # Read conditions from selected sheet
+    conditions = read_conditions(FILE_PATH, selected_sheet)
     tcs = generate_ep_testcases(conditions)
 
     # Write testcases to text file
@@ -377,3 +446,6 @@ if __name__ == "__main__":
         f.write(html)
 
     print(f"\n[OK] EP Matrix generated → {OUTPUT_HTML}")
+    
+    # Suppress harmless openpyxl ZipFile cleanup warning during exit
+    sys.stderr = open(os.devnull, 'w')
